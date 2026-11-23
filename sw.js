@@ -1,25 +1,48 @@
-const CACHE_NAME = 'bogasto-stock-v2';
-const FILES = ['./','./index.html','./manifest.json','./icon-192.png','./icon-512.png'];
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(FILES)));
+var CACHE_NAME = 'bogasto-stock-v10';
+var FILES_TO_CACHE = [
+  './',
+  './index.html',
+  './manifest.json',
+  './icon-512.png',
+  './icon-192.png'
+];
+
+// 1. Installation
+self.addEventListener('install', function(e) {
+  e.waitUntil(
+    caches.open(CACHE_NAME).then(function(cache) {
+      return cache.addAll(FILES_TO_CACHE);
+    })
+  );
   self.skipWaiting();
 });
-self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))));
+
+// 2. Activation : on supprime les anciennes versions v8, v9...
+self.addEventListener('activate', function(e) {
+  e.waitUntil(
+    caches.keys().then(function(keyList) {
+      return Promise.all(keyList.map(function(key) {
+        if (key !== CACHE_NAME) {
+          return caches.delete(key);
+        }
+      }));
+    })
+  );
   self.clients.claim();
 });
-self.addEventListener('fetch', (e) => {
+
+// 3. Quand on ouvre l'appli
+self.addEventListener('fetch', function(e) {
   e.respondWith(
-    caches.match(e.request).then((res) => {
-      if (res) return res;
-      return fetch(e.request).then((r) => {
-        if (r.ok && e.request.method === 'GET' && e.request.url.startsWith(self.location.origin)) {
-          let copy = r.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, copy));
-        }
-        return r;
-      }).catch(() => {
-        if (e.request.mode === 'navigate') return caches.match('./index.html');
+    fetch(e.request).then(function(response) {
+      var responseClone = response.clone();
+      caches.open(CACHE_NAME).then(function(cache) {
+        cache.put(e.request, responseClone);
+      });
+      return response;
+    }).catch(function() {
+      return caches.match(e.request).then(function(r) {
+        return r || caches.match('./index.html');
       });
     })
   );
